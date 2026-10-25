@@ -27,136 +27,97 @@
 <title>لوحة تحكم - وين الغاز؟</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--g:#1f5b4a;--bg:#f2f4f0;--card:#fff;--tx:#18241f;--mu:#667069;--fl:#e8761d}
+:root{--g:#1f5b4a;--bg:#f2f4f0;--card:#fff;--tx:#18241f;--mu:#667069}
 body{margin:0;background:var(--bg);color:var(--tx);font-family:"IBM Plex Sans Arabic",sans-serif;padding:16px}
-h1{color:var(--g);margin:0}
-.sub{color:var(--mu);font-size:14px;margin:4px 0 16px}
 .card{background:var(--card);border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 1px 4px #0001}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .num{font-size:32px;font-weight:700;color:var(--g)}
 .label{color:var(--mu);font-size:13px}
-table{width:100%;border-collapse:collapse;margin-top:8px}
+table{width:100%;border-collapse:collapse}
 th,td{padding:8px;text-align:right;border-bottom:1px solid #eee;font-size:13px}
-.btn{background:var(--g);color:#fff;border:0;padding:10px 16px;border-radius:10px;font:inherit;cursor:pointer}
-.error{background:#ffeaea;color:#b3402f;padding:12px;border-radius:10px;white-space:pre-wrap;font-size:13px}
-.ok{background:#e6f5ec;color:#1f5b4a;padding:12px;border-radius:10px}
+.ok{background:#e6f5ec;color:#1f5b4a;padding:10px;border-radius:8px}
+.err{background:#ffeaea;color:#b3402f;padding:10px;border-radius:8px;white-space:pre-wrap}
 </style>
 </head>
 <body>
 <h1>📊 لوحة تحكم - وين الغاز؟</h1>
-<p class="sub">تحديث تلقائي كل 30 ثانية - arabyad.github.io</p>
 <div id="status" class="card">⏳ جاري التحميل...</div>
 
 <div class="grid">
-  <div class="card"><div class="num" id="total">-</div><div class="label">إجمالي زيارات (CountAPI)</div></div>
-  <div class="card"><div class="num" id="today">-</div><div class="label">زيارات اليوم (محلي)</div></div>
-  <div class="card"><div class="num" id="points">-</div><div class="label">عدد النقاط</div></div>
-  <div class="card"><div class="num" id="avail">-</div><div class="label">نقاط متوفرة</div></div>
-</div>
-
-<div class="card">
-  <h3 style="margin:0 0 8px">حالة Firebase</h3>
-  <div id="fbStatus">-</div>
+  <div class="card"><div class="num" id="total">-</div><div class="label">إجمالي زيارات الموقع</div></div>
+  <div class="card"><div class="num" id="points">-</div><div class="label">عدد نقاط الغاز</div></div>
+  <div class="card"><div class="num" id="avail">-</div><div class="label">نقاط متوفرة الآن</div></div>
+  <div class="card"><div class="num" id="out">-</div><div class="label">نقاط خلصت</div></div>
 </div>
 
 <div class="card">
   <h3 style="margin:0 0 8px">آخر النقاط</h3>
-  <table id="lastPoints"><thead><tr><th>المكان</th><th>المدينة</th><th>الحالة</th><th>منذ</th></tr></thead><tbody></tbody></table>
-</div>
-
-<div class="card">
-  <h3>كيفية إصلاح خطأ Rules</h3>
-  <p style="font-size:13px;line-height:1.8">
-  لو شفت خطأ <code>permission-denied</code> أو <code>client is offline</code>:<br>
-  1. افتح <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a><br>
-  2. اختار مشروعك > Firestore Database > Rules<br>
-  3. الصق هذا واحفظ Publish:<br>
-  </p>
-  <pre style="background:#f5f5f5;padding:10px;border-radius:8px;font-size:12px;overflow:auto">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}</pre>
-  <p style="font-size:12px;color:var(--mu)">هذا للتجربة فقط، بعد ما تتأكد شغال ممكن نضيق الصلاحيات</p>
+  <table id="tbl"><thead><tr><th>المكان</th><th>المدينة</th><th>الحالة</th><th>منذ</th></tr></thead><tbody></tbody></table>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=10"></script>
+<script src="config.js?v=20"></script>
 <script>
 const $=id=>document.getElementById(id);
-const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const ago=ms=>{const m=Math.round((Date.now()-ms)/60000); if(m<1)return"الآن"; if(m<60)return m+" د"; const h=Math.round(m/60); if(h<24)return h+" س"; return Math.round(h/24)+" يوم"};
 
-// CountAPI للزوار - ما بحتاج Firebase
-async function loadVisits(){
-  try{
-    // عدّاد إجمالي - مفتاح فريد لموقعك
-    const namespace="arabyad-wain-gaz";
-    const key="visits";
-    // جلب العداد
-    const res=await fetch(`https://api.countapi.xyz/get/${namespace}/${key}`);
-    if(res.ok){
-      const data=await res.json();
-      $("total").textContent=data.value||0;
-    }else{
-      // أول مرة أنشئ العداد
-      const res2=await fetch(`https://api.countapi.xyz/create?namespace=${namespace}&key=${key}&value=0`);
-      const data2=await res2.json();
-      $("total").textContent=data2.value||0;
-    }
-  }catch(e){
-    $("total").textContent="غير متاح";
-    console.log(e);
-  }
-  // زيارات اليوم محلية
-  const today=new Date().toISOString().slice(0,10);
-  const todayCount=parseInt(localStorage.getItem("admin_today_"+today)||"0");
-  $("today").textContent=todayCount+" (على هذا الجهاز)";
-}
-
-async function loadFirebase(){
+async function init(){
   const statusEl=$("status");
-  const fbEl=$("fbStatus");
   try{
-    if(!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.projectId){
-      throw new Error("config.js ناقص أو projectId ما موجود");
-    }
+    if(!window.FIREBASE_CONFIG) throw new Error("config.js ما موجود");
     firebase.initializeApp(window.FIREBASE_CONFIG);
     const db=firebase.firestore();
     
-    // بدون persistence عشان ما يعلق offline
-    // db.enablePersistence() - شلناها
-    
-    statusEl.innerHTML='<div class="ok">✅ Firebase متصل - project: '+esc(window.FIREBASE_CONFIG.projectId)+'</div>';
-    fbEl.innerHTML='<span style="color:green">✅ متصل</span>';
+    // 1. تتبع زيارة جديدة (بدون CountAPI)
+    try{
+      const today=new Date().toISOString().slice(0,10);
+      const visitedToday=localStorage.getItem("v_"+today);
+      if(!visitedToday){
+        await db.collection("stats").doc("visits").set({
+          total: firebase.firestore.FieldValue.increment(1),
+          [today]: firebase.firestore.FieldValue.increment(1),
+          last: Date.now()
+        },{merge:true});
+        localStorage.setItem("v_"+today,"1");
+      }
+    }catch(e){ console.log("visit track",e.message); }
 
-    const snap=await db.collection("points").orderBy("updatedAt","desc").limit(30).get();
-    $("points").textContent=snap.size;
-    $("avail").textContent=snap.docs.filter(d=>d.data().status==="available").length;
+    // 2. جلب الإحصائيات
+    let visits={total:0};
+    try{
+      const vDoc=await db.collection("stats").doc("visits").get();
+      if(vDoc.exists) visits=vDoc.data();
+    }catch(e){}
+    $("total").textContent=visits.total||0;
+
+    // 3. جلب النقاط بدون orderBy عشان ما يحتاج Index
+    let docs=[];
+    try{
+      const snap=await db.collection("points").get();
+      docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){
+      throw new Error("ما قدرنا نقرأ points: "+e.message+" (code: "+(e.code||"")+")");
+    }
     
-    let rows="";
-    snap.forEach(d=>{
-      const p=d.data();
-      const ago=Math.round((Date.now()-(p.updatedAt||0))/60000);
-      const time=ago<1?"الآن":ago<60?ago+" د":Math.round(ago/60)+" س";
-      rows+=`<tr><td>${esc(p.name||"")}</td><td>${esc(p.city||"")}</td><td>${p.status==="available"?"🟢 متوفر":"🔴 خلص"}</td><td>${time}</td></tr>`;
-    });
-    document.querySelector("#lastPoints tbody").innerHTML=rows||"<tr><td colspan=4>لا يوجد نقاط</td></tr>";
+    docs.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
     
+    $("points").textContent=docs.length;
+    $("avail").textContent=docs.filter(d=>d.status==="available").length;
+    $("out").textContent=docs.filter(d=>d.status==="out").length;
+
+    const tbody=document.querySelector("#tbl tbody");
+    tbody.innerHTML=docs.slice(0,20).map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.city)}</td><td>${p.status==="available"?"🟢 متوفر":"🔴 خلص"}</td><td>${ago(p.updatedAt||0)}</td></tr>`).join("") || "<tr><td colspan=4>لا يوجد نقاط</td></tr>";
+
+    statusEl.innerHTML='<div class="ok">✅ Firebase متصل - project: '+esc(window.FIREBASE_CONFIG.projectId)+' - '+docs.length+' نقطة</div>';
+
   }catch(e){
+    statusEl.innerHTML='<div class="err">❌ خطأ: '+esc(e.message)+'</div>';
     console.error(e);
-    statusEl.innerHTML='<div class="error">❌ خطأ Firebase: '+(e.code||"")+' - '+e.message+'</div>';
-    fbEl.innerHTML='<span style="color:red">❌ غير متصل: '+esc(e.message)+'</span>';
-    $("points").textContent="خطأ Rules";
   }
 }
-
-loadVisits();
-loadFirebase();
-setInterval(()=>{ loadVisits(); loadFirebase(); },30000);
+init();
 </script>
 <script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
