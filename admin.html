@@ -1,109 +1,162 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-<head>
+<head><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>لوحة تحكم - وين الغاز؟</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--g:#1f5b4a;--bg:#f2f4f0;--card:#fff;--tx:#18241f;--mu:#667069}
+:root{--g:#1f5b4a;--bg:#f2f4f0;--card:#fff;--tx:#18241f;--mu:#667069;--fl:#e8761d}
 body{margin:0;background:var(--bg);color:var(--tx);font-family:"IBM Plex Sans Arabic",sans-serif;padding:16px}
-h1{color:var(--g)}
+h1{color:var(--g);margin:0}
+.sub{color:var(--mu);font-size:14px;margin:4px 0 16px}
 .card{background:var(--card);border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 1px 4px #0001}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .num{font-size:32px;font-weight:700;color:var(--g)}
-.label{color:var(--mu);font-size:14px}
-table{width:100%;border-collapse:collapse;margin-top:12px}
-th,td{padding:8px;text-align:right;border-bottom:1px solid #eee;font-size:14px}
+.label{color:var(--mu);font-size:13px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{padding:8px;text-align:right;border-bottom:1px solid #eee;font-size:13px}
+.btn{background:var(--g);color:#fff;border:0;padding:10px 16px;border-radius:10px;font:inherit;cursor:pointer}
+.error{background:#ffeaea;color:#b3402f;padding:12px;border-radius:10px;white-space:pre-wrap;font-size:13px}
+.ok{background:#e6f5ec;color:#1f5b4a;padding:12px;border-radius:10px}
 </style>
 </head>
 <body>
 <h1>📊 لوحة تحكم - وين الغاز؟</h1>
-<p id="status">جاري تحميل الإحصائيات...</p>
+<p class="sub">تحديث تلقائي كل 30 ثانية - arabyad.github.io</p>
+<div id="status" class="card">⏳ جاري التحميل...</div>
 
 <div class="grid">
-  <div class="card"><div class="num" id="total">-</div><div class="label">إجمالي الزيارات</div></div>
-  <div class="card"><div class="num" id="today">-</div><div class="label">زيارات اليوم</div></div>
-  <div class="card"><div class="num" id="unique">-</div><div class="label">زوار فريدين</div></div>
+  <div class="card"><div class="num" id="total">-</div><div class="label">إجمالي زيارات (CountAPI)</div></div>
+  <div class="card"><div class="num" id="today">-</div><div class="label">زيارات اليوم (محلي)</div></div>
   <div class="card"><div class="num" id="points">-</div><div class="label">عدد النقاط</div></div>
+  <div class="card"><div class="num" id="avail">-</div><div class="label">نقاط متوفرة</div></div>
 </div>
 
 <div class="card">
-  <h3>الزيارات حسب المدينة</h3>
-  <div id="cities">-</div>
+  <h3 style="margin:0 0 8px">حالة Firebase</h3>
+  <div id="fbStatus">-</div>
 </div>
 
 <div class="card">
-  <h3>الزيارات آخر 7 أيام</h3>
-  <canvas id="chart" width="400" height="200" style="width:100%"></canvas>
+  <h3 style="margin:0 0 8px">آخر النقاط</h3>
+  <table id="lastPoints"><thead><tr><th>المكان</th><th>المدينة</th><th>الحالة</th><th>منذ</th></tr></thead><tbody></tbody></table>
 </div>
 
 <div class="card">
-  <h3>آخر النقاط المضافة</h3>
-  <table id="lastPoints"><tr><th>المكان</th><th>المدينة</th><th>الحالة</th><th>الوقت</th></tr></table>
+  <h3>كيفية إصلاح خطأ Rules</h3>
+  <p style="font-size:13px;line-height:1.8">
+  لو شفت خطأ <code>permission-denied</code> أو <code>client is offline</code>:<br>
+  1. افتح <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a><br>
+  2. اختار مشروعك > Firestore Database > Rules<br>
+  3. الصق هذا واحفظ Publish:<br>
+  </p>
+  <pre style="background:#f5f5f5;padding:10px;border-radius:8px;font-size:12px;overflow:auto">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}</pre>
+  <p style="font-size:12px;color:var(--mu)">هذا للتجربة فقط، بعد ما تتأكد شغال ممكن نضيق الصلاحيات</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js"></script>
+<script src="config.js?v=10"></script>
 <script>
 const $=id=>document.getElementById(id);
-firebase.initializeApp(window.FIREBASE_CONFIG);
-const db=firebase.firestore();
+const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-async function load(){
+// CountAPI للزوار - ما بحتاج Firebase
+async function loadVisits(){
   try{
-    const statsSnap=await db.collection("stats").doc("global").get();
-    const stats=statsSnap.exists?statsSnap.data():{total:0,unique:0,today:0};
-    $("total").textContent=stats.total||0;
-    $("today").textContent=stats.today||0;
-    $("unique").textContent=stats.unique||0;
-
-    const pointsSnap=await db.collection("points").orderBy("updatedAt","desc").limit(20).get();
-    $("points").textContent=pointsSnap.size;
-    let rows="";
-    const cities={};
-    pointsSnap.forEach(d=>{
-      const p=d.data();
-      cities[p.city]=(cities[p.city]||0)+1;
-      const ago=Math.round((Date.now()-p.updatedAt)/60000);
-      rows+=`<tr><td>${p.name}</td><td>${p.city}</td><td>${p.status==="available"?"متوفر":"خلص"}</td><td>${ago<60?ago+" دقيقة":Math.round(ago/60)+" ساعة"}</td></tr>`;
-    });
-    $("lastPoints").innerHTML+="<tbody>"+rows+"</tbody>";
-    $("cities").innerHTML=Object.entries(cities).map(([c,n])=>`${c}: ${n}`).join("<br>")||"لا يوجد";
-
-    // تحميل الإحصائيات اليومية
-    const dailySnap=await db.collection("stats").doc("daily").collection("days").orderBy("date","desc").limit(7).get();
-    const days=[];
-    dailySnap.forEach(d=>days.push(d.data()));
-    days.reverse();
-    drawChart(days);
-
-    $("status").textContent="✅ آخر تحديث: "+new Date().toLocaleString("ar-SD");
+    // عدّاد إجمالي - مفتاح فريد لموقعك
+    const namespace="arabyad-wain-gaz";
+    const key="visits";
+    // جلب العداد
+    const res=await fetch(`https://api.countapi.xyz/get/${namespace}/${key}`);
+    if(res.ok){
+      const data=await res.json();
+      $("total").textContent=data.value||0;
+    }else{
+      // أول مرة أنشئ العداد
+      const res2=await fetch(`https://api.countapi.xyz/create?namespace=${namespace}&key=${key}&value=0`);
+      const data2=await res2.json();
+      $("total").textContent=data2.value||0;
+    }
   }catch(e){
-    $("status").textContent="❌ خطأ: "+e.message+" - تأكد من Rules";
+    $("total").textContent="غير متاح";
+    console.log(e);
+  }
+  // زيارات اليوم محلية
+  const today=new Date().toISOString().slice(0,10);
+  const todayCount=parseInt(localStorage.getItem("admin_today_"+today)||"0");
+  $("today").textContent=todayCount+" (على هذا الجهاز)";
+}
+
+async function loadFirebase(){
+  const statusEl=$("status");
+  const fbEl=$("fbStatus");
+  try{
+    if(!window.FIREBASE_CONFIG || !window.FIREBASE_CONFIG.projectId){
+      throw new Error("config.js ناقص أو projectId ما موجود");
+    }
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    const db=firebase.firestore();
+    
+    // بدون persistence عشان ما يعلق offline
+    // db.enablePersistence() - شلناها
+    
+    statusEl.innerHTML='<div class="ok">✅ Firebase متصل - project: '+esc(window.FIREBASE_CONFIG.projectId)+'</div>';
+    fbEl.innerHTML='<span style="color:green">✅ متصل</span>';
+
+    const snap=await db.collection("points").orderBy("updatedAt","desc").limit(30).get();
+    $("points").textContent=snap.size;
+    $("avail").textContent=snap.docs.filter(d=>d.data().status==="available").length;
+    
+    let rows="";
+    snap.forEach(d=>{
+      const p=d.data();
+      const ago=Math.round((Date.now()-(p.updatedAt||0))/60000);
+      const time=ago<1?"الآن":ago<60?ago+" د":Math.round(ago/60)+" س";
+      rows+=`<tr><td>${esc(p.name||"")}</td><td>${esc(p.city||"")}</td><td>${p.status==="available"?"🟢 متوفر":"🔴 خلص"}</td><td>${time}</td></tr>`;
+    });
+    document.querySelector("#lastPoints tbody").innerHTML=rows||"<tr><td colspan=4>لا يوجد نقاط</td></tr>";
+    
+  }catch(e){
+    console.error(e);
+    statusEl.innerHTML='<div class="error">❌ خطأ Firebase: '+(e.code||"")+' - '+e.message+'</div>';
+    fbEl.innerHTML='<span style="color:red">❌ غير متصل: '+esc(e.message)+'</span>';
+    $("points").textContent="خطأ Rules";
   }
 }
 
-function drawChart(days){
-  const c=document.getElementById("chart");
-  const ctx=c.getContext("2d");
-  const max=Math.max(1,...days.map(d=>d.count||0));
-  ctx.clearRect(0,0,c.width,c.height);
-  if(!days.length) return;
-  const w=c.width/days.length;
-  days.forEach((d,i)=>{
-    const h=(d.count||0)/max*150;
-    ctx.fillStyle="#1f5b4a";
-    ctx.fillRect(i*w+10, 180-h, w-20, h);
-    ctx.fillStyle="#667069";
-    ctx.font="12px sans-serif";
-    ctx.fillText(d.count||0, i*w+15, 175-h);
-    ctx.fillText((d.date||"").slice(5), i*w+5, 195);
-  });
-}
-load();
-setInterval(load,30000);
+loadVisits();
+loadFirebase();
+setInterval(()=>{ loadVisits(); loadFirebase(); },30000);
 </script>
-</body>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
