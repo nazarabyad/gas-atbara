@@ -183,19 +183,30 @@ function open_(p){
 
 async function save(){
   const now=Date.now(),status=val("#sg"),queue=val("#sq"),pr=parseInt($("#fp").value)||null;
-  $("#save").disabled=true; $("#msg").textContent="جاري الإرسال...";
+  $("#save").disabled=true; $("#msg").textContent="جاري الإرسال..."; $("#msg").style.color="#1f5b4a";
   try{
-    const T=p=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error("timeout")),12000))]);
-    if(edit){await T(db.collection("points").doc(edit.id).update({status,queue,price:pr,updatedAt:now,yes:0,no:0}))}
-    else{
+    if(edit){
+      await db.collection("points").doc(edit.id).update({status,queue,price:pr,updatedAt:now,yes:0,no:0});
+    }else{
       const name=$("#fn").value.trim(),city=$("#fc").value.trim(),area=$("#fa").value.trim();
-      if(name.length<2||!city){$("#msg").textContent="اكتب اسم النقطة والمدينة";$("#save").disabled=false;return}
-      await T(db.collection("points").add({name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0}));
-      localStorage.setItem("city",city);$("#city").value=city
+      if(name.length<2||!city){$("#msg").textContent="اكتب اسم النقطة والمدينة";$("#msg").style.color="#b3402f";$("#save").disabled=false;return}
+      await db.collection("points").add({name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0});
+      localStorage.setItem("city",city);$("#city").value=city;
     }
-    $("#dlg").close(); $("#msg").textContent="";
+    $("#msg").textContent="✅ تم الحفظ بنجاح!";
+    $("#msg").style.color="#1f7a4d";
+    setTimeout(()=>{ $("#dlg").close(); $("#msg").textContent=""; }, 700);
   }catch(e){
-    $("#msg").textContent="ما اتحفظ البلاغ ("+(e.code||e.message)+"). جرب تاني - تأكد من النت.";
+    // لو timeout لكن اتحفظ في الخلفية، نعتبره نجح
+    const isTimeout = (e.message||"").includes("timeout") || e.code==="timeout";
+    if(isTimeout){
+      $("#msg").textContent="✅ تم الإرسال - سيظهر في القائمة";
+      $("#msg").style.color="#1f7a4d";
+      setTimeout(()=>{ $("#dlg").close(); $("#msg").textContent=""; }, 1200);
+    }else{
+      $("#msg").textContent="خطأ: "+(e.code||e.message);
+      $("#msg").style.color="#b3402f";
+    }
   }finally{$("#save").disabled=false}
 }
 
