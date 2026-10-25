@@ -220,6 +220,7 @@ async function save(){
       await db.collection("points").doc(edit.id).update({status,queue,price:pr,updatedAt:now,yes:0,no:0});
     }else{
       await db.collection("points").add({name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0});
+      trackContribution();
     }
     $("#conn").textContent="✅ تم الحفظ";
     setTimeout(()=>{$("#conn").textContent="متصل"},2000);
@@ -256,42 +257,44 @@ $("#share").onclick=()=>{
 
 // === إصلاح مشكلة التحديث ===
 
-// === نظام تتبع الزوار للمدير ===
+// === تتبع الزوار - عشان تعرف الناس الخشت وما أضافت ===
 async function trackVisit(){
   try{
     const today=new Date().toISOString().slice(0,10);
-    const hasVisited=localStorage.getItem("visited_"+today);
+    const hasVisitedToday=localStorage.getItem("visited_"+today);
     const isNewUser=!localStorage.getItem("ever_visited");
+    if(hasVisitedToday) return; // نحسب مرة واحدة في اليوم
     
     const globalRef=db.collection("stats").doc("global");
     const dailyRef=db.collection("stats").doc("daily").collection("days").doc(today);
     
-    // زيادة العدادات
     await globalRef.set({
-      total: firebase.firestore.FieldValue.increment(1),
-      today: firebase.firestore.FieldValue.increment(hasVisited?0:1),
-      unique: firebase.firestore.FieldValue.increment(isNewUser?1:0),
+      totalVisits: firebase.firestore.FieldValue.increment(1),
+      todayVisits: firebase.firestore.FieldValue.increment(1),
+      uniqueVisitors: firebase.firestore.FieldValue.increment(isNewUser?1:0),
       lastVisit: Date.now()
     },{merge:true});
     
     await dailyRef.set({
       date: today,
-      count: firebase.firestore.FieldValue.increment(hasVisited?0:1)
+      visits: firebase.firestore.FieldValue.increment(1)
     },{merge:true});
-    
-    // حسب المدينة
-    const city=$("#city").value||"غير محدد";
-    const cityRef=db.collection("stats").doc("cities").collection("list").doc(city||"unknown");
-    if(!hasVisited){
-      await cityRef.set({count: firebase.firestore.FieldValue.increment(1), name: city},{merge:true});
-    }
     
     localStorage.setItem("visited_"+today,"1");
     localStorage.setItem("ever_visited","1");
-  }catch(e){ console.log("track error",e); }
+  }catch(e){ console.log("track",e); }
 }
-// شغل التتبع بعد ثانيتين
+// شغل بعد ثانيتين من فتح الموقع
 setTimeout(trackVisit,2000);
+
+async function trackContribution(){
+  try{
+    const globalRef=db.collection("stats").doc("global");
+    await globalRef.set({
+      totalContributions: firebase.firestore.FieldValue.increment(1)
+    },{merge:true});
+  }catch(e){}
+}
 
 let gotFirstData=false;
 function startFirestore(){
