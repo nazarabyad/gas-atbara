@@ -78,7 +78,7 @@ label{display:block;margin:10px 0 4px;font-size:14px;font-weight:500}
 <body>
 <header>
   <h1>وين الغاز؟</h1>
-  <p>بلاغات الناس عن توفر الغاز وسعره، تتحدث لحظة بلحظة</p>
+  <p>الناس بتساعد بعض بمعلومات الغاز وسعره، تتحدث لحظة بلحظة</p>
 </header>
 <div class="bar">
   <input id="city" placeholder="المدينة - مثال: عطبرة" aria-label="المدينة">
@@ -92,12 +92,12 @@ label{display:block;margin:10px 0 4px;font-size:14px;font-weight:500}
 </div>
 <div class="status"><span id="conn">⏳ جاري التحميل...</span><span id="cnt"></span></div>
 <main id="list"><div class="empty">جاري التحميل...</div></main>
-<button class="fab" id="add">بلّغ عن نقطة غاز</button>
+<button class="fab" id="add">➕ ساعد غيرك - وين لقيت غاز؟</button>
 
 <dialog id="dlg">
-  <h2 id="dt" style="margin:0 0 4px;font-size:20px">بلاغ جديد</h2>
+  <h2 id="dt" style="margin:0 0 4px;font-size:20px">شارك مكان غاز جديد</h2>
   <div id="nameBox">
-    <label for="fn">اسم النقطة</label>
+    <label for="fn">اسم المكان</label>
     <input id="fn" maxlength="60" placeholder="مثال: محطة الشرقي">
     <div class="row">
       <div style="flex:1"><label for="fc">المدينة</label><input id="fc" maxlength="40" placeholder="عطبرة"></div>
@@ -118,7 +118,7 @@ label{display:block;margin:10px 0 4px;font-size:14px;font-weight:500}
     <button type="button" class="q" data-v="long" aria-pressed="false">صف طويل</button>
   </div>
   <div id="msg" role="alert"></div>
-  <button class="go" id="save">إرسال البلاغ</button>
+  <button class="go" id="save">شارك المكان</button>
   <button class="x" id="cancel">إلغاء</button>
 </dialog>
 
@@ -150,7 +150,7 @@ function render(){
   const now=Date.now();
   const cNorm=normalize($("#city").value), qNorm=normalize($("#q").value);
   const rows=pts.filter(p=>{
-    // خلص بتختفي بعد 30 دقيقة من البلاغ
+    // خلص بتختفي بعد 30 دقيقة من المكان
     if(p.status==="out" && now - (p.updatedAt||0) > 30*60*1000){
       if(flt==="out") return true; // بس في تبويب خلص تظهر
       return false; // في الكل والمتوفر اخفيها
@@ -169,7 +169,7 @@ function render(){
   if(flt==="available" && rows.length===0 && pts.length>0){
     $("#list").innerHTML='<div class="empty">ما في غاز متوفر حاليا في '+esc($("#city").value||"المدينة")+'<br>جرب تفتح تبويب "الكل" عشان تشوف النقاط الخلصت<br><br>كن أول من يبلّغ لما يجي الغاز!</div>';return
   }
-  if(!rows.length){$("#list").innerHTML='<div class="empty">ما في بلاغات هنا لسه.<br>كن أول من يبلّغ بالضغط على الزر تحت.</div>';return}
+  if(!rows.length){$("#list").innerHTML='<div class="empty">ما في مكانات هنا لسه.<br>كن أول من يبلّغ بالضغط على الزر تحت.</div>';return}
   $("#list").innerHTML=rows.map(p=>{
     const t=p.updatedAt||0,old=Date.now()-t>24*3600*1000,dbt=p.no>=3&&p.no>p.yes,v=voted[p.id]===t;
     return `<article class="pt ${p.status==="out"?"out":""} ${old?"old":""}">
@@ -180,13 +180,13 @@ function render(){
       <div class="acts">
         <button class="b" data-a="yes" data-id="${p.id}" ${v?"disabled":""}>تأكدت (${p.yes||0})</button>
         <button class="b" data-a="no" data-id="${p.id}" ${v?"disabled":""}>غير صحيح (${p.no||0})</button>
-        <button class="b" data-a="upd" data-id="${p.id}">حدّث</button>
+        <button class="b" data-a="upd" data-id="${p.id}">عدّل</button>
       </div></article>`}).join("")
 }
 
 function open_(p){
   edit=p||null;$("#msg").textContent="";
-  $("#dt").textContent=p?"تحديث: "+p.name:"بلاغ جديد";
+  $("#dt").textContent=p?"تعديل: "+p.name:"شارك مكان غاز جديد";
   $("#nameBox").hidden=!!p;
   if(!p){$("#fn").value="";$("#fa").value="";}
   $("#fc").value=p?p.city:($("#city").value||"");
@@ -204,7 +204,7 @@ async function save(){
     if(idx>-1){ pts[idx]={...pts[idx], status,queue,price:pr,updatedAt:now,yes:0,no:0}; render(); saveCache(); }
   }else{
     name=$("#fn").value.trim();city=$("#fc").value.trim();area=$("#fa").value.trim();
-    if(name.length<2||!city){$("#msg").textContent="اكتب اسم النقطة والمدينة";$("#msg").style.color="#b3402f";return}
+    if(name.length<2||!city){$("#msg").textContent="اكتب اسم المكان والمدينة";$("#msg").style.color="#b3402f";return}
     // إضافة محلية فورية - تظهر في أقل من 100 ملي ثانية
     const tempId="temp_"+now;
     const newPoint={id:tempId,name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0,_temp:true};
