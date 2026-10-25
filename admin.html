@@ -118,14 +118,18 @@ async function load(){
     document.getElementById('unique').textContent=data.uniqueVisitors||0;
     document.getElementById('initCard').style.display='none';
     
-    const today=new Date().toISOString().slice(0,10);
-    const todaySnap=await db.collection('stats').doc('daily').collection('days').doc(today).get();
-    document.getElementById('today').textContent=todaySnap.exists?(todaySnap.data().visits||0):0;
-    
-    const dailySnap=await db.collection('stats').doc('daily').collection('days').orderBy('date','desc').limit(7).get();
-    let html='';
-    dailySnap.forEach(d=>{const v=d.data(); html+=`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee"><span>${v.date}</span><b>${v.visits||0}</b></div>`});
-    document.getElementById('daily').innerHTML=html||'';
+    try{
+      const today=new Date().toISOString().slice(0,10);
+      const todaySnap=await db.collection('stats').doc('daily').collection('days').doc(today).get();
+      document.getElementById('today').textContent=todaySnap.exists?(todaySnap.data().visits||0):0;
+      const dailySnap=await db.collection('stats').doc('daily').collection('days').orderBy('date','desc').limit(7).get();
+      let html2='';
+      dailySnap.forEach(d=>{const v=d.data(); html2+=`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee"><span>${v.date}</span><b>${v.visits||0}</b></div>`});
+      document.getElementById('daily').innerHTML=html2||'';
+    }catch(e){
+      document.getElementById('today').textContent=document.getElementById('total').textContent;
+      document.getElementById('daily').innerHTML='<small style="color:#999">التفاصيل اليومية تحتاج نت أقوى</small>';
+    }
     
     status.innerHTML='<div class="ok">✅ شغال - إجمالي: '+(data.totalVisits||0)+' - آخر زيارة: '+new Date(data.lastVisit||Date.now()).toLocaleString('ar-SD')+'</div>';
     document.getElementById('time').textContent='آخر تحديث: '+new Date().toLocaleTimeString();
