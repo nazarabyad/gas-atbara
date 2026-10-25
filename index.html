@@ -183,31 +183,38 @@ function open_(p){
 
 async function save(){
   const now=Date.now(),status=val("#sg"),queue=val("#sq"),pr=parseInt($("#fp").value)||null;
-  $("#save").disabled=true; $("#msg").textContent="جاري الإرسال..."; $("#msg").style.color="#1f5b4a";
+  let name,city,area;
+  if(edit){
+    // تحديث محلي سريع
+    const idx=pts.findIndex(x=>x.id===edit.id);
+    if(idx>-1){ pts[idx]={...pts[idx], status,queue,price:pr,updatedAt:now,yes:0,no:0}; render(); saveCache(); }
+  }else{
+    name=$("#fn").value.trim();city=$("#fc").value.trim();area=$("#fa").value.trim();
+    if(name.length<2||!city){$("#msg").textContent="اكتب اسم النقطة والمدينة";$("#msg").style.color="#b3402f";return}
+    // إضافة محلية فورية - تظهر في أقل من 100 ملي ثانية
+    const tempId="temp_"+now;
+    const newPoint={id:tempId,name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0,_temp:true};
+    pts=[newPoint,...pts]; render(); saveCache();
+    localStorage.setItem("city",city);$("#city").value=city;
+  }
+  // اقفل النافذة فورا - ما تنتظر النت
+  $("#dlg").close(); $("#msg").textContent=""; $("#save").disabled=false;
+  $("#conn").textContent="⏳ جاري المزامنة...";
+
   try{
     if(edit){
       await db.collection("points").doc(edit.id).update({status,queue,price:pr,updatedAt:now,yes:0,no:0});
     }else{
-      const name=$("#fn").value.trim(),city=$("#fc").value.trim(),area=$("#fa").value.trim();
-      if(name.length<2||!city){$("#msg").textContent="اكتب اسم النقطة والمدينة";$("#msg").style.color="#b3402f";$("#save").disabled=false;return}
       await db.collection("points").add({name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0});
-      localStorage.setItem("city",city);$("#city").value=city;
     }
-    $("#msg").textContent="✅ تم الحفظ بنجاح!";
-    $("#msg").style.color="#1f7a4d";
-    setTimeout(()=>{ $("#dlg").close(); $("#msg").textContent=""; }, 700);
+    $("#conn").textContent="✅ تم الحفظ";
+    setTimeout(()=>{$("#conn").textContent="متصل"},2000);
   }catch(e){
-    // لو timeout لكن اتحفظ في الخلفية، نعتبره نجح
-    const isTimeout = (e.message||"").includes("timeout") || e.code==="timeout";
-    if(isTimeout){
-      $("#msg").textContent="✅ تم الإرسال - سيظهر في القائمة";
-      $("#msg").style.color="#1f7a4d";
-      setTimeout(()=>{ $("#dlg").close(); $("#msg").textContent=""; }, 1200);
-    }else{
-      $("#msg").textContent="خطأ: "+(e.code||e.message);
-      $("#msg").style.color="#b3402f";
-    }
-  }finally{$("#save").disabled=false}
+    $("#conn").textContent="⚠️ حُفظ محليا، سيُرسل عند تحسن النت";
+    // حاول تاني بعد 5 ثواني
+    setTimeout(()=>{ if(db) save(); },5000);
+    console.error(e);
+  }
 }
 
 $("#list").addEventListener("click",async e=>{
@@ -262,7 +269,11 @@ function startFirestore(){
 
     unsub=db.collection("points").orderBy("updatedAt","desc").limit(300).onSnapshot(s=>{
       gotFirstData=true;
-      pts=s.docs.map(d=>({id:d.id,...d.data()}));
+      const serverPts=s.docs.map(d=>({id:d.id,...d.data()}));
+      // ادمج مع المؤقتة المحلية لو لسه ما وصلت
+      const tempPts=pts.filter(p=>p._temp && (Date.now()-p.updatedAt<60000));
+      pts=[...tempPts.filter(tp=>!serverPts.some(sp=>sp.name===tp.name && sp.city===tp.city)), ...serverPts];
+      pts.forEach(p=>delete p._temp);
       saveCache();
       render();
       $("#conn").textContent="✅ محدث لحظيا";
