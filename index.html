@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f5b4a">
+<title>وين الغاز؟</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--g:#1f5b4a;--gd:#143d32;--fl:#e8761d;--bg:#f2f4f0;--card:#fff;--tx:#18241f;--mu:#667069;--ok:#1f7a4d;--no:#b3402f;--ln:#dfe4dc}
+@media(prefers-color-scheme:dark){:root{--bg:#101a16;--card:#18251f;--tx:#e9efe9;--mu:#9aa89f;--ln:#2a3a32;--g:#2d8266}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;line-height:1.6}
+header{background:var(--gd);color:#fff;padding:18px 16px 14px}
+h1{margin:0;font-size:26px;font-weight:700}
+header p{margin:2px 0 0;opacity:.8;font-size:14px}
+.bar{display:flex;gap:8px;padding:12px 16px 0}
+input,select{font:inherit;color:var(--tx);background:var(--card);border:1.5px solid var(--ln);border-radius:10px;padding:10px 12px;width:100%}
+.chips{display:flex;gap:8px;padding:10px 16px;overflow-x:auto}
+.chip{flex:none;border:1.5px solid var(--ln);background:var(--card);color:var(--tx);border-radius:99px;padding:6px 14px;font:inherit;font-size:14px}
+.chip[aria-pressed=true]{background:var(--g);border-color:var(--g);color:#fff}
+main{padding:4px 16px 96px;display:grid;gap:10px}
+.pt{background:var(--card);border-radius:14px;padding:14px;border-inline-start:6px solid var(--ok)}
+.pt.out{border-inline-start-color:var(--no)}
+.pt.old{opacity:.65}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.nm{font-weight:700;font-size:17px}
+.ar{color:var(--mu);font-size:14px}
+.st{font-weight:700;font-size:14px;color:var(--ok);white-space:nowrap}
+.out .st{color:var(--no)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0;font-size:14px;color:var(--mu)}
+.meta b{color:var(--tx)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer}
+.b{border:1.5px solid var(--ln);background:none;color:var(--tx);border-radius:10px;padding:7px 12px;font-size:14px}
+.b:disabled{opacity:.5}
+.warn{color:var(--fl);font-size:13px;font-weight:500}
+.empty{text-align:center;color:var(--mu);padding:40px 10px}
+.fab{position:fixed;inset-inline:16px;bottom:16px;background:var(--fl);color:#fff;border:0;border-radius:14px;padding:14px;font-size:18px;font-weight:700;box-shadow:0 4px 14px #0004}
+dialog{border:0;border-radius:18px;padding:18px;width:min(92vw,420px);background:var(--card);color:var(--tx)}
+dialog::backdrop{background:#0008}
+label{display:block;margin:10px 0 4px;font-size:14px;font-weight:500}
+.row{display:flex;gap:8px}
+.seg{display:flex;gap:8px}
+.seg button{flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--ln);background:none;color:var(--tx)}
+.seg button[aria-pressed=true].a{background:var(--ok);border-color:var(--ok);color:#fff}
+.seg button[aria-pressed=true].o{background:var(--no);border-color:var(--no);color:#fff}
+.seg button[aria-pressed=true].q{background:var(--g);border-color:var(--g);color:#fff}
+.go{width:100%;margin-top:16px;background:var(--g);color:#fff;border:0;border-radius:12px;padding:13px;font-size:17px;font-weight:700}
+.x{background:none;border:0;color:var(--mu);width:100%;margin-top:6px;padding:8px}
+#msg{color:var(--no);font-size:14px;min-height:20px}
+:focus-visible{outline:3px solid var(--fl);outline-offset:2px}
+</style>
+</head>
+<body>
+<header>
+  <h1>وين الغاز؟</h1>
+  <p>بلاغات الناس عن توفر الغاز وسعره، تتحدث لحظة بلحظة</p>
+</header>
+<div class="bar">
+  <input id="city" placeholder="المدينة" aria-label="المدينة">
+  <input id="q" placeholder="ابحث بالحي أو الاسم" aria-label="بحث">
+</div>
+<div class="chips" role="group" aria-label="فلترة">
+  <button class="chip" data-f="all" aria-pressed="true">الكل</button>
+  <button class="chip" data-f="available" aria-pressed="false">متوفر</button>
+  <button class="chip" data-f="out" aria-pressed="false">خلص</button>
+  <button class="chip" id="share">شارك التطبيق</button>
+</div>
+<main id="list"><div class="empty">جاري التحميل...</div></main>
+<button class="fab" id="add">بلّغ عن نقطة غاز</button>
+
+<dialog id="dlg">
+  <h2 id="dt" style="margin:0 0 4px;font-size:20px">بلاغ جديد</h2>
+  <div id="nameBox">
+    <label for="fn">اسم النقطة</label>
+    <input id="fn" maxlength="60" placeholder="مثال: محطة الشرقي">
+    <div class="row">
+      <div style="flex:1"><label for="fc">المدينة</label><input id="fc" maxlength="40"></div>
+      <div style="flex:1"><label for="fa">الحي</label><input id="fa" maxlength="60" placeholder="حي المطار مربع 11"></div>
+    </div>
+  </div>
+  <label>الحالة</label>
+  <div class="seg" id="sg">
+    <button type="button" class="a" data-v="available" aria-pressed="true">متوفر</button>
+    <button type="button" class="o" data-v="out" aria-pressed="false">خلص</button>
+  </div>
+  <label for="fp">السعر (جنيه، اختياري)</label>
+  <input id="fp" type="number" inputmode="numeric" min="0">
+  <label>الزحمة</label>
+  <div class="seg" id="sq">
+    <button type="button" class="q" data-v="none" aria-pressed="true">ما في صف</button>
+    <button type="button" class="q" data-v="short" aria-pressed="false">صف قصير</button>
+    <button type="button" class="q" data-v="long" aria-pressed="false">صف طويل</button>
+  </div>
+  <div id="msg" role="alert"></div>
+  <button class="go" id="save">إرسال البلاغ</button>
+  <button class="x" id="cancel">إلغاء</button>
+</dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="config.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const QL={none:"ما في صف",short:"صف قصير",long:"صف طويل"};
+let pts=[],flt="all",edit=null,db;
+let voted={};try{voted=JSON.parse(localStorage.getItem("voted")||"{}")}catch(e){}
+const pick=(sel,v)=>document.querySelectorAll(sel+" button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===v));
+const val=sel=>document.querySelector(sel+' [aria-pressed=true]').dataset.v;
+$("#city").value=localStorage.getItem("city")||window.DEFAULT_CITY||"";
+
+function ago(ms){const m=Math.max(0,Math.round((Date.now()-ms)/60000));
+  if(m<1)return"الآن";if(m<60)return"قبل "+m+" دقيقة";
+  const h=Math.round(m/60);if(h<24)return"قبل "+h+" ساعة";return"قبل "+Math.round(h/24)+" يوم"}
+
+function render(){
+  const c=$("#city").value.trim(),q=$("#q").value.trim();
+  const rows=pts.filter(p=>(!c||p.city===c)&&(flt==="all"||p.status===flt)&&(!q||(p.name+" "+p.area).includes(q)));
+  if(!rows.length){$("#list").innerHTML='<div class="empty">ما في بلاغات هنا لسه.<br>كن أول من يبلّغ بالضغط على الزر تحت.</div>';return}
+  $("#list").innerHTML=rows.map(p=>{
+    const t=p.updatedAt||0,old=Date.now()-t>864e5,dbt=p.no>=3&&p.no>p.yes,v=voted[p.id]===t;
+    return `<article class="pt ${p.status==="out"?"out":""} ${old?"old":""}">
+      <div class="top"><div><div class="nm">${esc(p.name)}</div><div class="ar">${esc(p.area)}${p.area&&p.city?"، ":""}${esc(p.city)}</div></div>
+      <div class="st">${p.status==="out"?"خلص":"متوفر"}</div></div>
+      <div class="meta"><span>السعر: <b>${p.price?esc(p.price)+" ج":"غير معروف"}</b></span><span><b>${QL[p.queue]||""}</b></span><span>${ago(t)}</span></div>
+      ${dbt?'<div class="warn">ناس كتير قالت المعلومة دي غير صحيحة</div>':""}
+      <div class="acts">
+        <button class="b" data-a="yes" data-id="${p.id}" ${v?"disabled":""}>تأكدت (${p.yes||0})</button>
+        <button class="b" data-a="no" data-id="${p.id}" ${v?"disabled":""}>غير صحيح (${p.no||0})</button>
+        <button class="b" data-a="upd" data-id="${p.id}">حدّث</button>
+      </div></article>`}).join("")
+}
+
+function open_(p){
+  edit=p||null;$("#msg").textContent="";
+  $("#dt").textContent=p?"تحديث: "+p.name:"بلاغ جديد";
+  $("#nameBox").hidden=!!p;
+  $("#fn").value="";$("#fa").value="";$("#fc").value=$("#city").value;
+  pick("#sg",p?p.status:"available");pick("#sq",p?p.queue:"none");
+  $("#fp").value=p&&p.price?p.price:"";
+  $("#dlg").showModal()
+}
+
+async function save(){
+  const now=Date.now(),status=val("#sg"),queue=val("#sq"),pr=parseInt($("#fp").value)||null;
+  $("#save").disabled=true;
+  try{
+    if(edit){await db.collection("points").doc(edit.id).update({status,queue,price:pr,updatedAt:now,yes:0,no:0})}
+    else{
+      const name=$("#fn").value.trim(),city=$("#fc").value.trim(),area=$("#fa").value.trim();
+      if(name.length<2||!city){$("#msg").textContent="اكتب اسم النقطة والمدينة";return}
+      await db.collection("points").add({name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0});
+      localStorage.setItem("city",city);$("#city").value=city
+    }
+    $("#dlg").close()
+  }catch(e){$("#msg").textContent="ما اتحفظ البلاغ. تأكد من النت وجرب تاني."}
+  finally{$("#save").disabled=false}
+}
+
+$("#list").addEventListener("click",async e=>{
+  const b=e.target.closest("button[data-a]");if(!b)return;
+  const p=pts.find(x=>x.id===b.dataset.id);if(!p)return;
+  if(b.dataset.a==="upd")return open_(p);
+  const f=b.dataset.a;
+  try{await db.collection("points").doc(p.id).update({[f]:firebase.firestore.FieldValue.increment(1)});
+    voted[p.id]=p.updatedAt;localStorage.setItem("voted",JSON.stringify(voted))}catch(e){}
+});
+document.querySelectorAll(".chip[data-f]").forEach(b=>b.onclick=()=>{
+  flt=b.dataset.f;document.querySelectorAll(".chip[data-f]").forEach(x=>x.setAttribute("aria-pressed",x===b));render()});
+$("#city").oninput=()=>{localStorage.setItem("city",$("#city").value);render()};
+$("#q").oninput=render;
+$("#add").onclick=()=>open_();
+$("#cancel").onclick=()=>$("#dlg").close();
+$("#save").onclick=save;
+["#sg","#sq"].forEach(s=>$(s).onclick=e=>{const b=e.target.closest("button");if(b)pick(s,b.dataset.v)});
+$("#share").onclick=()=>{const u=location.href,t="وين الغاز؟ شوف الغاز المتوفر وبلّغ: ";
+  navigator.share?navigator.share({title:"وين الغاز؟",text:t,url:u}).catch(()=>{}):location.href="https://wa.me/?text="+encodeURIComponent(t+u)};
+
+try{
+  firebase.initializeApp(window.FIREBASE_CONFIG);db=firebase.firestore();
+  db.collection("points").orderBy("updatedAt","desc").limit(300).onSnapshot(
+    s=>{pts=s.docs.map(d=>({id:d.id,...d.data()}));render()},
+    ()=>{$("#list").innerHTML='<div class="empty">تعذر تحميل البيانات. تأكد من النت ومن إعدادات Firebase.</div>'});
+}catch(e){$("#list").innerHTML='<div class="empty">إعدادات Firebase ناقصة في ملف config.js</div>'}
+</script>
+</body>
+</html>
