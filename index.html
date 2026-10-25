@@ -255,6 +255,44 @@ $("#share").onclick=()=>{
 };
 
 // === إصلاح مشكلة التحديث ===
+
+// === نظام تتبع الزوار للمدير ===
+async function trackVisit(){
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    const hasVisited=localStorage.getItem("visited_"+today);
+    const isNewUser=!localStorage.getItem("ever_visited");
+    
+    const globalRef=db.collection("stats").doc("global");
+    const dailyRef=db.collection("stats").doc("daily").collection("days").doc(today);
+    
+    // زيادة العدادات
+    await globalRef.set({
+      total: firebase.firestore.FieldValue.increment(1),
+      today: firebase.firestore.FieldValue.increment(hasVisited?0:1),
+      unique: firebase.firestore.FieldValue.increment(isNewUser?1:0),
+      lastVisit: Date.now()
+    },{merge:true});
+    
+    await dailyRef.set({
+      date: today,
+      count: firebase.firestore.FieldValue.increment(hasVisited?0:1)
+    },{merge:true});
+    
+    // حسب المدينة
+    const city=$("#city").value||"غير محدد";
+    const cityRef=db.collection("stats").doc("cities").collection("list").doc(city||"unknown");
+    if(!hasVisited){
+      await cityRef.set({count: firebase.firestore.FieldValue.increment(1), name: city},{merge:true});
+    }
+    
+    localStorage.setItem("visited_"+today,"1");
+    localStorage.setItem("ever_visited","1");
+  }catch(e){ console.log("track error",e); }
+}
+// شغل التتبع بعد ثانيتين
+setTimeout(trackVisit,2000);
+
 let gotFirstData=false;
 function startFirestore(){
   if(!window.FIREBASE_CONFIG||!window.FIREBASE_CONFIG.apiKey){
