@@ -220,7 +220,6 @@ async function save(){
       await db.collection("points").doc(edit.id).update({status,queue,price:pr,updatedAt:now,yes:0,no:0});
     }else{
       await db.collection("points").add({name,city,area,status,queue,price:pr,updatedAt:now,yes:0,no:0});
-      trackContribution();
     }
     $("#conn").textContent="✅ تم الحفظ";
     setTimeout(()=>{$("#conn").textContent="متصل"},2000);
@@ -257,44 +256,36 @@ $("#share").onclick=()=>{
 
 // === إصلاح مشكلة التحديث ===
 
-// === تتبع الزوار - عشان تعرف الناس الخشت وما أضافت ===
+// === نظام تتبع الزوار - لمعرفة من اتفرج بس ===
 async function trackVisit(){
   try{
+    if(!db) return;
     const today=new Date().toISOString().slice(0,10);
-    const hasVisitedToday=localStorage.getItem("visited_"+today);
-    const isNewUser=!localStorage.getItem("ever_visited");
-    if(hasVisitedToday) return; // نحسب مرة واحدة في اليوم
-    
+    const key="visited_"+today;
+    if(localStorage.getItem(key)) return;
     const globalRef=db.collection("stats").doc("global");
-    const dailyRef=db.collection("stats").doc("daily").collection("days").doc(today);
-    
+    const isNew=!localStorage.getItem("ever_visited");
     await globalRef.set({
       totalVisits: firebase.firestore.FieldValue.increment(1),
-      todayVisits: firebase.firestore.FieldValue.increment(1),
-      uniqueVisitors: firebase.firestore.FieldValue.increment(isNewUser?1:0),
+      uniqueVisitors: firebase.firestore.FieldValue.increment(isNew?1:0),
       lastVisit: Date.now()
     },{merge:true});
-    
-    await dailyRef.set({
-      date: today,
-      visits: firebase.firestore.FieldValue.increment(1)
-    },{merge:true});
-    
-    localStorage.setItem("visited_"+today,"1");
+    // يومي
+    const dailyRef=db.collection("stats").doc("daily").collection("days").doc(today);
+    await dailyRef.set({date:today, visits: firebase.firestore.FieldValue.increment(1)},{merge:true});
+    localStorage.setItem(key,"1");
     localStorage.setItem("ever_visited","1");
-  }catch(e){ console.log("track",e); }
+    console.log("✅ تم تسجيل الزيارة");
+  }catch(e){ console.log("visit track err",e); }
 }
-// شغل بعد ثانيتين من فتح الموقع
-setTimeout(trackVisit,2000);
-
 async function trackContribution(){
   try{
     const globalRef=db.collection("stats").doc("global");
-    await globalRef.set({
-      totalContributions: firebase.firestore.FieldValue.increment(1)
-    },{merge:true});
-  }catch(e){}
+    await globalRef.set({totalContributions: firebase.firestore.FieldValue.increment(1)},{merge:true});
+  }catch(e){ console.log(e); }
 }
+// شغل بعد 3 ثواني من فتح الموقع
+setTimeout(trackVisit, 3000);
 
 let gotFirstData=false;
 function startFirestore(){
