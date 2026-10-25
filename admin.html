@@ -54,53 +54,82 @@ button{background:#1f5b4a;color:#fff;border:0;padding:12px 20px;border-radius:99
 
 <div class="card"><button onclick="load()">🔄 تحديث الآن</button><div class="small" id="time"></div></div>
 
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="config.js?v=visitors_only"></script>
+<script src="config.js?v=visitors_only_v2"></script>
 <script>
+async function getWithTimeout(promise, ms){
+  return Promise.race([promise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))]);
+}
 async function load(){
   const status=document.getElementById('status');
-  status.innerHTML='⏳ جاري التحميل...';
+  status.innerHTML='<div class="ok">⏳ جاري تحميل الزوار (4 ثواني timeout)...</div>';
   try{
     if(!window.FIREBASE_CONFIG) throw new Error('config.js ناقص');
     if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
     const db=firebase.firestore();
+    // اقفل الـ offline persistence عشان ما يعلق
+    try{ await db.disableNetwork(); await db.enableNetwork(); }catch(e){}
     
-    // جلب إجمالي الزوار
-    const globalSnap=await db.collection('stats').doc('global').get();
-    if(!globalSnap.exists){
-      status.innerHTML='<div class="err">❌ لسه مافي زيارات<br><small>افتح arabyad.github.io كزائر أول مرة (النسخة الأخيرة فيها العداد)</small></div>';
+    // جلب إجمالي الزوار مع timeout
+    let data=null;
+    try{
+      const p = db.collection('stats').doc('global').get({source:'server'});
+      const globalSnap = await getWithTimeout(p, 5000);
+      if(globalSnap.exists) data=globalSnap.data();
+    }catch(e){
+      console.log('server fetch failed, trying cache',e);
+      try{
+        const cacheSnap=await db.collection('stats').doc('global').get({source:'cache'});
+        if(cacheSnap.exists) data=cacheSnap.data();
+      }catch(e2){}
+    }
+    
+    if(!data){
+      status.innerHTML='<div class="err">⚠️ لسه مافي زيارات<br><small>1- تأكد رفعت index-visitor-final.html كـ index.html<br>2- افتح arabyad.github.io?v=1 كزائر واستنى 5 ثواني<br>3- ارجع هنا</small></div>';
       document.getElementById('total').textContent='0';
       document.getElementById('unique').textContent='0';
       document.getElementById('today').textContent='0';
       return;
     }
-    const data=globalSnap.data();
+    
     document.getElementById('total').textContent=data.totalVisits||0;
     document.getElementById('unique').textContent=data.uniqueVisitors||0;
     
     // جلب اليوم
-    const today=new Date().toISOString().slice(0,10);
-    const todaySnap=await db.collection('stats').doc('daily').collection('days').doc(today).get();
-    document.getElementById('today').textContent=todaySnap.exists?(todaySnap.data().visits||0):0;
+    try{
+      const today=new Date().toISOString().slice(0,10);
+      const p2=db.collection('stats').doc('daily').collection('days').doc(today).get({source:'server'});
+      const todaySnap=await getWithTimeout(p2, 3000);
+      document.getElementById('today').textContent=todaySnap.exists?(todaySnap.data().visits||0):0;
+    }catch(e){
+      document.getElementById('today').textContent='-';
+    }
     
     // آخر 7 أيام
-    const dailySnap=await db.collection('stats').doc('daily').collection('days').orderBy('date','desc').limit(7).get();
-    let html='';
-    dailySnap.forEach(d=>{
-      const v=d.data();
-      html+=`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee"><span>${v.date}</span><b>${v.visits||0} زيارة</b></div>`;
-    });
-    document.getElementById('daily').innerHTML=html||'لا يوجد بيانات أيام بعد';
+    try{
+      const p3=db.collection('stats').doc('daily').collection('days').orderBy('date','desc').limit(7).get({source:'server'});
+      const dailySnap=await getWithTimeout(p3, 3000);
+      let html='';
+      dailySnap.forEach(d=>{
+        const v=d.data();
+        html+=`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee"><span>${v.date}</span><b>${v.visits||0} زيارة</b></div>`;
+      });
+      document.getElementById('daily').innerHTML=html||'لا يوجد بيانات أيام بعد';
+    }catch(e){
+      document.getElementById('daily').innerHTML='<small>لا يمكن تحميل الأيام (نت ضعيف)</small>';
+    }
     
-    status.innerHTML='<div class="ok">✅ تم - آخر زيارة: '+new Date(data.lastVisit||Date.now()).toLocaleString('ar-SD')+'</div>';
+    status.innerHTML='<div class="ok">✅ تم - إجمالي: '+(data.totalVisits||0)+' | آخر زيارة: '+new Date(data.lastVisit||Date.now()).toLocaleString('ar-SD')+'</div>';
     document.getElementById('time').textContent='آخر تحديث: '+new Date().toLocaleTimeString();
   }catch(e){
-    status.innerHTML='<div class="err">❌ خطأ: '+e.message+'</div>';
+    status.innerHTML='<div class="err">❌ خطأ: '+e.message+'<br><small>النت ضعيف جدا - حاول تاني</small></div>';
     console.error(e);
   }
 }
 load();
 </script>
+
 <script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
 </html>
