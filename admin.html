@@ -62,7 +62,33 @@ button{background:#1f5b4a;color:#fff;border:0;padding:12px 20px;border-radius:99
 async function getWithTimeout(promise, ms){
   return Promise.race([promise, new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))]);
 }
+
+async function initCounter(){
+  const msg=document.getElementById('initMsg');
+  msg.textContent='⏳ جاري إنشاء العداد...';
+  try{
+    if(!window.FIREBASE_CONFIG) throw new Error('config.js ناقص');
+    if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    const db=firebase.firestore();
+    const globalRef=db.collection('stats').doc('global');
+    // أنشئ العداد بـ 1 زيارة (انت)
+    await globalRef.set({
+      totalVisits: 1,
+      uniqueVisitors: 1,
+      totalContributions: 0,
+      lastVisit: Date.now()
+    },{merge:false});
+    const today=new Date().toISOString().slice(0,10);
+    const dailyRef=db.collection('stats').doc('daily').collection('days').doc(today);
+    await dailyRef.set({date:today, visits:1},{merge:false});
+    msg.textContent='✅ تم إنشاء العداد - دوس تحديث الآن';
+    setTimeout(load,1000);
+  }catch(e){
+    msg.textContent='❌ خطأ: '+e.message;
+  }
+}
 async function load(){
+
   const status=document.getElementById('status');
   status.innerHTML='<div class="ok">⏳ جاري تحميل الزوار (4 ثواني timeout)...</div>';
   try{
