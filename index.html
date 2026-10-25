@@ -85,8 +85,8 @@ label{display:block;margin:10px 0 4px;font-size:14px;font-weight:500}
   <input id="q" placeholder="ابحث بالحي أو الاسم" aria-label="بحث">
 </div>
 <div class="chips" role="group" aria-label="فلترة">
-  <button class="chip" data-f="all" aria-pressed="true">الكل</button>
-  <button class="chip" data-f="available" aria-pressed="false">متوفر</button>
+  <button class="chip" data-f="available" aria-pressed="true">متوفر</button>
+  <button class="chip" data-f="all" aria-pressed="false">الكل</button>
   <button class="chip" data-f="out" aria-pressed="false">خلص</button>
   <button class="chip" id="share">شارك التطبيق</button>
 </div>
@@ -130,7 +130,7 @@ const $=s=>document.querySelector(s);
 const esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const QL={none:"ما في صف",short:"صف قصير",long:"صف طويل"};
 const CACHE_KEY="wain_gaz_pts_v3";
-let pts=[],flt="all",edit=null,db,unsub=null;
+let pts=[],flt="available",edit=null,db,unsub=null;
 let voted={};try{voted=JSON.parse(localStorage.getItem("voted")||"{}")}catch(e){}
 const pick=(sel,v)=>document.querySelectorAll(sel+" button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));
 const val=sel=>{const el=document.querySelector(sel+' [aria-pressed=true]');return el?el.dataset.v:"none"};
@@ -147,14 +147,28 @@ function saveCache(){try{localStorage.setItem(CACHE_KEY,JSON.stringify({pts,at:D
 function loadCache(){try{const c=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");if(c&&c.pts){pts=c.pts;return true}}catch{}return false}
 
 function render(){
+  const now=Date.now();
   const cNorm=normalize($("#city").value), qNorm=normalize($("#q").value);
   const rows=pts.filter(p=>{
+    // خلص بتختفي بعد 30 دقيقة من البلاغ
+    if(p.status==="out" && now - (p.updatedAt||0) > 30*60*1000){
+      if(flt==="out") return true; // بس في تبويب خلص تظهر
+      return false; // في الكل والمتوفر اخفيها
+    }
     const cityOk=!cNorm||normalize(p.city).includes(cNorm);
     const statusOk=flt==="all"||p.status===flt;
     const qOk=!qNorm||normalize(p.name+" "+p.area).includes(qNorm);
     return cityOk&&statusOk&&qOk;
+  }).sort((a,b)=>{
+    // المتوفر فوق، الخلص تحت
+    if(a.status!==b.status) return a.status==="available"?-1:1;
+    return (b.updatedAt||0)-(a.updatedAt||0);
   });
-  $("#cnt").textContent=rows.length?rows.length+" نقطة":"";
+  const availableCount = pts.filter(p=>p.status==="available").length;
+  $("#cnt").textContent=flt==="available"?availableCount+" نقطة متوفرة":rows.length+" نقطة";
+  if(flt==="available" && rows.length===0 && pts.length>0){
+    $("#list").innerHTML='<div class="empty">ما في غاز متوفر حاليا في '+esc($("#city").value||"المدينة")+'<br>جرب تفتح تبويب "الكل" عشان تشوف النقاط الخلصت<br><br>كن أول من يبلّغ لما يجي الغاز!</div>';return
+  }
   if(!rows.length){$("#list").innerHTML='<div class="empty">ما في بلاغات هنا لسه.<br>كن أول من يبلّغ بالضغط على الزر تحت.</div>';return}
   $("#list").innerHTML=rows.map(p=>{
     const t=p.updatedAt||0,old=Date.now()-t>24*3600*1000,dbt=p.no>=3&&p.no>p.yes,v=voted[p.id]===t;
